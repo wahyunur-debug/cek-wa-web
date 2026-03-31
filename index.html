@@ -1,97 +1,5 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>WA Checker Pro</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-  <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #0f172a, #1e293b);
-      color: white;
-      padding: 40px;
-    }
-
-    .card {
-      background: #1e293b;
-      padding: 30px;
-      border-radius: 15px;
-      max-width: 900px;
-      margin: auto;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-
-    input, button {
-      padding: 10px;
-      border-radius: 8px;
-      border: none;
-      margin: 5px;
-    }
-
-    button {
-      background: #22c55e;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: #16a34a;
-    }
-
-    table {
-      width: 100%;
-      margin-top: 20px;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #334155;
-      text-align: center;
-    }
-
-    .aktif { color: #22c55e; font-weight: bold; }
-    .tidak { color: #ef4444; font-weight: bold; }
-
-    .progress {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #94a3b8;
-    }
-  </style>
-</head>
-<body>
-
-<div class="card">
-  <h1>📊 WA Checker Pro</h1>
-
-  <input type="file" id="file" />
-  <br>
-  <button onclick="mulai()">Mulai Cek</button>
-  <button onclick="downloadExcel()">Download Excel</button>
-
-  <div class="progress" id="progress"></div>
-
-  <table id="table">
-    <thead>
-      <tr>
-        <th>No</th>
-        <th>No Telp</th>
-        <th>Keterangan</th>
-        <th>WA</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-</div>
-
 <script>
-const API = "https://NAMA-BACKEND.up.railway.app/cek"; // GANTI INI
+const API = "https://wa-backend-production-b88a.up.railway.app/cek";
 
 let hasil = [];
 
@@ -128,14 +36,18 @@ async function mulai() {
       try {
         const res = await fetch(API, {
           method: "POST",
-          headers: {"Content-Type": "application/json"},
+          headers: {
+            "Content-Type": "application/json"
+          },
           body: JSON.stringify({ nomor })
         });
 
         const data = await res.json();
 
-        let ket = data.keterangan || "ERROR";
-        let wa = data.wa || "ERROR";
+        console.log("RESP:", data);
+
+        let ket = data.keterangan || "TIDAK AKTIF";
+        let wa = data.wa || "TIDAK TERDAFTAR";
 
         hasil.push({
           "NO": no,
@@ -148,31 +60,26 @@ async function mulai() {
           <tr>
             <td>${no}</td>
             <td>${nomor}</td>
-            <td class="${ket === 'AKTIF' ? 'aktif' : 'tidak'}">${ket}</td>
-            <td class="${wa === 'TERDAFTAR' ? 'aktif' : 'tidak'}">${wa}</td>
+            <td style="color:${ket==='AKTIF'?'#00ff9d':'#ff4d4d'}">${ket}</td>
+            <td style="color:${wa==='TERDAFTAR'?'#00ff9d':'#ff4d4d'}">${wa}</td>
           </tr>
         `;
 
-      } catch (e) {
-        hasil.push({
-          "NO": no,
-          "NO TELP": nomor,
-          "KETERANGAN": "ERROR",
-          "WA": "ERROR"
-        });
+      } catch (err) {
+        console.log("ERROR:", err);
 
         tbody.innerHTML += `
           <tr>
             <td>${no}</td>
             <td>${nomor}</td>
-            <td class="tidak">ERROR</td>
-            <td class="tidak">ERROR</td>
+            <td style="color:red">ERROR</td>
+            <td style="color:red">ERROR</td>
           </tr>
         `;
       }
 
       no++;
-      await new Promise(r => setTimeout(r, 800)); // anti limit
+      await new Promise(r => setTimeout(r, 800));
     }
 
     document.getElementById("progress").innerText = "Selesai ✅";
@@ -180,29 +87,4 @@ async function mulai() {
 
   reader.readAsArrayBuffer(file);
 }
-
-function downloadExcel() {
-  if (hasil.length === 0) {
-    alert("Belum ada hasil!");
-    return;
-  }
-
-  const ws = XLSX.utils.json_to_sheet(hasil);
-
-  // AUTO WIDTH
-  ws['!cols'] = [
-    { wch: 5 },
-    { wch: 20 },
-    { wch: 20 },
-    { wch: 20 }
-  ];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Hasil");
-
-  XLSX.writeFile(wb, "hasil_cek_wa.xlsx");
-}
 </script>
-
-</body>
-</html>
