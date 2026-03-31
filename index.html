@@ -1,70 +1,102 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>WA Number Checker</title>
+  <title>WA Checker Pro</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
   <style>
     body {
       font-family: Arial;
       background: #0f172a;
       color: white;
-      text-align: center;
       padding: 40px;
+    }
+
+    h2 {
+      text-align: center;
     }
 
     .card {
       background: #1e293b;
-      padding: 30px;
+      padding: 25px;
       border-radius: 12px;
-      max-width: 600px;
+      max-width: 800px;
       margin: auto;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    input, button {
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: none;
     }
 
     button {
-      padding: 12px 20px;
-      border: none;
-      border-radius: 8px;
       background: #22c55e;
       color: white;
       cursor: pointer;
-      margin-top: 10px;
     }
 
     button:hover {
       background: #16a34a;
     }
 
-    #progress {
-      margin-top: 15px;
+    table {
+      width: 100%;
+      margin-top: 20px;
+      border-collapse: collapse;
     }
 
-    pre {
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #334155;
       text-align: left;
-      background: #020617;
-      padding: 15px;
-      border-radius: 10px;
-      margin-top: 20px;
-      max-height: 300px;
-      overflow: auto;
     }
+
+    .aktif {
+      color: #22c55e;
+      font-weight: bold;
+    }
+
+    .tidak {
+      color: #ef4444;
+      font-weight: bold;
+    }
+
+    #progress {
+      margin-top: 10px;
+    }
+
   </style>
 </head>
 <body>
 
 <div class="card">
-  <h2>📱 WA Number Checker</h2>
+  <h2>📱 WA Checker Pro</h2>
 
-  <input type="file" id="file" />
+  <input type="file" id="file">
   <br>
   <button onclick="proses()">Mulai Cek</button>
+  <button onclick="downloadExcel()">Download Excel</button>
 
   <div id="progress"></div>
-  <pre id="hasil"></pre>
+
+  <table id="table">
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>Nomor</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </div>
 
 <script>
 const API_URL = "https://ISI_URL_BACKEND_KAMU/cek";
+
+let hasilGlobal = [];
 
 async function proses() {
   const file = document.getElementById("file").files[0];
@@ -83,7 +115,11 @@ async function proses() {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet);
 
-    let hasil = [];
+    const tbody = document.querySelector("#table tbody");
+    tbody.innerHTML = "";
+
+    hasilGlobal = [];
+
     let total = json.length;
     let count = 0;
 
@@ -105,21 +141,53 @@ async function proses() {
 
         const dataRes = await res.json();
 
-        hasil.push({
+        const status = dataRes.registered ? "AKTIF" : "TIDAK";
+
+        hasilGlobal.push({
           nomor: dataRes.nomor,
-          status: dataRes.registered ? "AKTIF" : "TIDAK"
+          status
         });
 
+        const tr = `
+          <tr>
+            <td>${count}</td>
+            <td>${dataRes.nomor}</td>
+            <td class="${status === "AKTIF" ? "aktif" : "tidak"}">
+              ${status}
+            </td>
+          </tr>
+        `;
+
+        tbody.innerHTML += tr;
+
       } catch {
-        hasil.push({ nomor, status: "ERROR" });
+        tbody.innerHTML += `
+          <tr>
+            <td>${count}</td>
+            <td>${nomor}</td>
+            <td class="tidak">ERROR</td>
+          </tr>
+        `;
       }
     }
 
-    document.getElementById("hasil").textContent =
-      JSON.stringify(hasil, null, 2);
+    document.getElementById("progress").innerText = "Selesai ✅";
   };
 
   reader.readAsArrayBuffer(file);
+}
+
+function downloadExcel() {
+  if (hasilGlobal.length === 0) {
+    alert("Belum ada data!");
+    return;
+  }
+
+  const ws = XLSX.utils.json_to_sheet(hasilGlobal);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Hasil");
+
+  XLSX.writeFile(wb, "hasil_cek_wa.xlsx");
 }
 </script>
 
