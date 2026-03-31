@@ -3,6 +3,7 @@
 <head>
   <title>WA Checker Pro</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -80,7 +81,7 @@
     <thead>
       <tr>
         <th>No</th>
-        <th>Nomor</th>
+        <th>No Telp</th>
         <th>Keterangan</th>
         <th>WA</th>
       </tr>
@@ -90,7 +91,7 @@
 </div>
 
 <script>
-const API = "https://NAMA-BACKEND.up.railway.app/cek";
+const API = "https://NAMA-BACKEND.up.railway.app/cek"; // GANTI INI
 
 let hasil = [];
 
@@ -117,7 +118,9 @@ async function mulai() {
     let no = 1;
 
     for (let row of json) {
-      let nomor = row["NO TELP"] || row["Nomor"] || "";
+      let nomor = row["NO TELP"] || "";
+
+      if (!nomor) continue;
 
       document.getElementById("progress").innerText =
         `Proses ${no} / ${json.length}`;
@@ -131,14 +134,14 @@ async function mulai() {
 
         const data = await res.json();
 
-        let ket = data.keterangan;
-        let wa = data.wa;
+        let ket = data.keterangan || "ERROR";
+        let wa = data.wa || "ERROR";
 
         hasil.push({
-          NO: no,
-          NOMOR: nomor,
-          KETERANGAN: ket,
-          WA: wa
+          "NO": no,
+          "NO TELP": nomor,
+          "KETERANGAN": ket,
+          "WA": wa
         });
 
         tbody.innerHTML += `
@@ -151,6 +154,13 @@ async function mulai() {
         `;
 
       } catch (e) {
+        hasil.push({
+          "NO": no,
+          "NO TELP": nomor,
+          "KETERANGAN": "ERROR",
+          "WA": "ERROR"
+        });
+
         tbody.innerHTML += `
           <tr>
             <td>${no}</td>
@@ -162,7 +172,7 @@ async function mulai() {
       }
 
       no++;
-      await new Promise(r => setTimeout(r, 700)); // delay anti limit
+      await new Promise(r => setTimeout(r, 800)); // anti limit
     }
 
     document.getElementById("progress").innerText = "Selesai ✅";
@@ -178,10 +188,19 @@ function downloadExcel() {
   }
 
   const ws = XLSX.utils.json_to_sheet(hasil);
+
+  // AUTO WIDTH
+  ws['!cols'] = [
+    { wch: 5 },
+    { wch: 20 },
+    { wch: 20 },
+    { wch: 20 }
+  ];
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Hasil");
 
-  XLSX.writeFile(wb, "hasil_wa.xlsx");
+  XLSX.writeFile(wb, "hasil_cek_wa.xlsx");
 }
 </script>
 
