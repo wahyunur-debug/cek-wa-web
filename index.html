@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CEK NOMOR WA</title>
+</head>
+<body>
+
+<h2>Upload Excel Nomor</h2>
+
+<input type="file" id="fileInput" />
+<button onclick="processFile()">PROSES</button>
+
+<p id="status"></p>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<script>
+async function processFile() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) return alert("Upload file dulu!");
+
+    const reader = new FileReader();
+
+    reader.onload = async function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+
+        document.getElementById("status").innerText = "⏳ Processing...";
+
+        for (let i = 0; i < json.length; i++) {
+            let nomor = json[i]["NO TELP"];
+            if (!nomor) continue;
+
+            try {
+                let res = await fetch("https://wa-backend-production-da05.up.railway.app/cek", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ nomor })
+                });
+
+                let dataRes = await res.json();
+
+                json[i]["KETERANGAN"] = "AKTIF";
+                json[i]["WA"] = dataRes.registered ? "TERDAFTAR" : "TIDAK TERDAFTAR";
+
+            } catch (e) {
+                json[i]["KETERANGAN"] = "ERROR";
+                json[i]["WA"] = "ERROR";
+            }
+        }
+
+        const newSheet = XLSX.utils.json_to_sheet(json);
+        const newBook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newBook, newSheet, "HASIL");
+
+        XLSX.writeFile(newBook, "hasil_cek.xlsx");
+
+        document.getElementById("status").innerText = "✅ Selesai!";
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+</script>
+
+</body>
+</html>
