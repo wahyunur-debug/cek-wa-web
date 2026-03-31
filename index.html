@@ -1,19 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>CEK NOMOR WA</title>
-</head>
-<body>
-
-<h2>Upload Excel Nomor</h2>
-
-<input type="file" id="fileInput" />
-<button onclick="processFile()">PROSES</button>
-
-<p id="status"></p>
-
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
 <script>
 async function processFile() {
     const file = document.getElementById('fileInput').files[0];
@@ -30,8 +14,27 @@ async function processFile() {
         document.getElementById("status").innerText = "⏳ Processing...";
 
         for (let i = 0; i < json.length; i++) {
-            let nomor = json[i]["NO TELP"];
-            if (!nomor) continue;
+            let raw = json[i]["NO TELP"];
+
+            if (!raw) {
+                json[i]["KETERANGAN"] = "KOSONG";
+                json[i]["WA"] = "INVALID";
+                continue;
+            }
+
+            // 🔧 NORMALISASI NOMOR
+            let nomor = raw.toString().replace(/\D/g, "");
+
+            if (nomor.startsWith("0")) {
+                nomor = "62" + nomor.slice(1);
+            }
+
+            // ❌ VALIDASI DASAR
+            if (!nomor.startsWith("62") || nomor.length < 10) {
+                json[i]["KETERANGAN"] = "FORMAT SALAH";
+                json[i]["WA"] = "INVALID";
+                continue;
+            }
 
             try {
                 let res = await fetch("https://wa-backend-production-da05.up.railway.app/cek", {
@@ -44,12 +47,21 @@ async function processFile() {
 
                 let dataRes = await res.json();
 
-                json[i]["KETERANGAN"] = "AKTIF";
-                json[i]["WA"] = dataRes.registered ? "TERDAFTAR" : "TIDAK TERDAFTAR";
+                // 🔥 DOUBLE VALIDASI
+                if (!dataRes || dataRes.registered === undefined) {
+                    json[i]["KETERANGAN"] = "API ERROR";
+                    json[i]["WA"] = "TIDAK VALID";
+                } else if (dataRes.registered === true) {
+                    json[i]["KETERANGAN"] = "AKTIF";
+                    json[i]["WA"] = "TERDAFTAR";
+                } else {
+                    json[i]["KETERANGAN"] = "AKTIF";
+                    json[i]["WA"] = "TIDAK TERDAFTAR";
+                }
 
             } catch (e) {
                 json[i]["KETERANGAN"] = "ERROR";
-                json[i]["WA"] = "ERROR";
+                json[i]["WA"] = "GAGAL CEK";
             }
         }
 
@@ -57,7 +69,7 @@ async function processFile() {
         const newBook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(newBook, newSheet, "HASIL");
 
-        XLSX.writeFile(newBook, "hasil_cek.xlsx");
+        XLSX.writeFile(newBook, "hasil_cek_pro.xlsx");
 
         document.getElementById("status").innerText = "✅ Selesai!";
     };
@@ -65,7 +77,3 @@ async function processFile() {
     reader.readAsArrayBuffer(file);
 }
 </script>
-
-</body>
-</html>
- 
