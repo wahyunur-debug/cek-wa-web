@@ -1,90 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CEK NOMOR WA</title>
+</head>
+<body>
+
+<h2>Upload Excel Nomor</h2>
+
+<input type="file" id="fileInput" />
+<button onclick="processFile()">PROSES</button>
+
+<p id="status"></p>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
 <script>
-const API = "https://wa-backend-production-b88a.up.railway.app/cek";
+async function processFile() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) return alert("Upload file dulu!");
 
-let hasil = [];
+    const reader = new FileReader();
 
-async function mulai() {
-  const file = document.getElementById("file").files[0];
+    reader.onload = async function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
 
-  if (!file) {
-    alert("Upload file dulu!");
-    return;
-  }
+        document.getElementById("status").innerText = "⏳ Processing...";
 
-  const reader = new FileReader();
+        for (let i = 0; i < json.length; i++) {
+            let nomor = json[i]["NO TELP"];
 
-  reader.onload = async function(e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, {type: 'array'});
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet);
+            if (!nomor) continue;
 
-    const tbody = document.querySelector("#table tbody");
-    tbody.innerHTML = "";
-    hasil = [];
+            try {
+                let res = await fetch("https://BACKEND-LO.up.railway.app/cek", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ nomor })
+                });
 
-    let no = 1;
+                let dataRes = await res.json();
 
-    for (let row of json) {
-      let nomor = row["NO TELP"] || "";
+                json[i]["KETERANGAN"] = "AKTIF";
+                json[i]["WA"] = dataRes.registered ? "TERDAFTAR" : "TIDAK TERDAFTAR";
 
-      if (!nomor) continue;
+            } catch (e) {
+                json[i]["KETERANGAN"] = "ERROR";
+                json[i]["WA"] = "ERROR";
+            }
+        }
 
-      document.getElementById("progress").innerText =
-        `Proses ${no} / ${json.length}`;
+        const newSheet = XLSX.utils.json_to_sheet(json);
+        const newBook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newBook, newSheet, "HASIL");
 
-      try {
-        const res = await fetch(API, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ nomor })
-        });
+        XLSX.writeFile(newBook, "hasil_cek.xlsx");
 
-        const data = await res.json();
+        document.getElementById("status").innerText = "✅ Selesai!";
+    };
 
-        console.log("RESP:", data);
-
-        let ket = data.keterangan || "TIDAK AKTIF";
-        let wa = data.wa || "TIDAK TERDAFTAR";
-
-        hasil.push({
-          "NO": no,
-          "NO TELP": nomor,
-          "KETERANGAN": ket,
-          "WA": wa
-        });
-
-        tbody.innerHTML += `
-          <tr>
-            <td>${no}</td>
-            <td>${nomor}</td>
-            <td style="color:${ket==='AKTIF'?'#00ff9d':'#ff4d4d'}">${ket}</td>
-            <td style="color:${wa==='TERDAFTAR'?'#00ff9d':'#ff4d4d'}">${wa}</td>
-          </tr>
-        `;
-
-      } catch (err) {
-        console.log("ERROR:", err);
-
-        tbody.innerHTML += `
-          <tr>
-            <td>${no}</td>
-            <td>${nomor}</td>
-            <td style="color:red">ERROR</td>
-            <td style="color:red">ERROR</td>
-          </tr>
-        `;
-      }
-
-      no++;
-      await new Promise(r => setTimeout(r, 800));
-    }
-
-    document.getElementById("progress").innerText = "Selesai ✅";
-  };
-
-  reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(file);
 }
 </script>
+
+</body>
+</html>
