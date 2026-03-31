@@ -1,23 +1,79 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>CEK NOMOR WA</title>
+  <title>WA Number Checker</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 600px;
+      margin: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #22c55e;
+      color: white;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #16a34a;
+    }
+
+    #progress {
+      margin-top: 15px;
+    }
+
+    pre {
+      text-align: left;
+      background: #020617;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+      max-height: 300px;
+      overflow: auto;
+    }
+  </style>
 </head>
 <body>
 
-<h2>Upload Excel Nomor WA</h2>
-<input type="file" id="file" />
-<button onclick="proses()">PROSES</button>
+<div class="card">
+  <h2>📱 WA Number Checker</h2>
 
-<pre id="hasil"></pre>
+  <input type="file" id="file" />
+  <br>
+  <button onclick="proses()">Mulai Cek</button>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <div id="progress"></div>
+  <pre id="hasil"></pre>
+</div>
 
 <script>
-const API_URL = "https://URL-BACKEND-LU/cek"; // GANTI
+const API_URL = "https://ISI_URL_BACKEND_KAMU/cek";
 
 async function proses() {
   const file = document.getElementById("file").files[0];
+
+  if (!file) {
+    alert("Upload file dulu!");
+    return;
+  }
+
   const reader = new FileReader();
 
   reader.onload = async function(e) {
@@ -28,22 +84,35 @@ async function proses() {
     const json = XLSX.utils.sheet_to_json(sheet);
 
     let hasil = [];
+    let total = json.length;
+    let count = 0;
 
     for (let row of json) {
       const nomor = row["NO TELP"];
+      if (!nomor) continue;
 
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomor })
-      });
+      count++;
 
-      const dataRes = await res.json();
+      document.getElementById("progress").innerText =
+        `Processing ${count} / ${total}`;
 
-      hasil.push({
-        nomor: dataRes.nomor,
-        status: dataRes.registered ? "AKTIF" : "TIDAK TERDAFTAR"
-      });
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nomor })
+        });
+
+        const dataRes = await res.json();
+
+        hasil.push({
+          nomor: dataRes.nomor,
+          status: dataRes.registered ? "AKTIF" : "TIDAK"
+        });
+
+      } catch {
+        hasil.push({ nomor, status: "ERROR" });
+      }
     }
 
     document.getElementById("hasil").textContent =
