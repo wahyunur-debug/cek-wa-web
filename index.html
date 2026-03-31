@@ -1,3 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CEK NOMOR WA</title>
+</head>
+<body>
+
+<h2>Upload Excel Nomor</h2>
+
+<input type="file" id="fileInput" />
+<button onclick="processFile()">PROSES</button>
+
+<p id="status"></p>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
 <script>
 async function processFile() {
     const file = document.getElementById('fileInput').files[0];
@@ -14,62 +30,29 @@ async function processFile() {
         document.getElementById("status").innerText = "⏳ Processing...";
 
         for (let i = 0; i < json.length; i++) {
-            let raw = json[i]["NO TELP"];
+            let nomor = json[i]["NO TELP"];
 
-            if (!raw) {
-                json[i]["KETERANGAN"] = "KOSONG";
-                json[i]["WA"] = "INVALID";
-                continue;
-            }
+            if (!nomor) continue;
 
-            // 🔧 NORMALISASI NOMOR
-            let nomor = raw.toString().replace(/\D/g, "");
+            let res = await fetch("https://wa-backend-production-da05.up.railway.app/cek", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ nomor })
+            });
 
-            if (nomor.startsWith("0")) {
-                nomor = "62" + nomor.slice(1);
-            }
+            let dataRes = await res.json();
 
-            // ❌ VALIDASI DASAR
-            if (!nomor.startsWith("62") || nomor.length < 10) {
-                json[i]["KETERANGAN"] = "FORMAT SALAH";
-                json[i]["WA"] = "INVALID";
-                continue;
-            }
-
-            try {
-                let res = await fetch("https://wa-backend-production-da05.up.railway.app/cek", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ nomor })
-                });
-
-                let dataRes = await res.json();
-
-                // 🔥 DOUBLE VALIDASI
-                if (!dataRes || dataRes.registered === undefined) {
-                    json[i]["KETERANGAN"] = "API ERROR";
-                    json[i]["WA"] = "TIDAK VALID";
-                } else if (dataRes.registered === true) {
-                    json[i]["KETERANGAN"] = "AKTIF";
-                    json[i]["WA"] = "TERDAFTAR";
-                } else {
-                    json[i]["KETERANGAN"] = "AKTIF";
-                    json[i]["WA"] = "TIDAK TERDAFTAR";
-                }
-
-            } catch (e) {
-                json[i]["KETERANGAN"] = "ERROR";
-                json[i]["WA"] = "GAGAL CEK";
-            }
+            json[i]["KETERANGAN"] = "AKTIF";
+            json[i]["WA"] = dataRes.registered ? "TERDAFTAR" : "TIDAK TERDAFTAR";
         }
 
         const newSheet = XLSX.utils.json_to_sheet(json);
         const newBook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(newBook, newSheet, "HASIL");
 
-        XLSX.writeFile(newBook, "hasil_cek_pro.xlsx");
+        XLSX.writeFile(newBook, "hasil.xlsx");
 
         document.getElementById("status").innerText = "✅ Selesai!";
     };
@@ -77,3 +60,6 @@ async function processFile() {
     reader.readAsArrayBuffer(file);
 }
 </script>
+
+</body>
+</html>
