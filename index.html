@@ -5,59 +5,52 @@
 </head>
 <body>
 
-<h2>Upload Excel Nomor</h2>
+<h2>Upload Excel Nomor WA</h2>
+<input type="file" id="file" />
+<button onclick="proses()">PROSES</button>
 
-<input type="file" id="fileInput" />
-<button onclick="processFile()">PROSES</button>
-
-<p id="status"></p>
+<pre id="hasil"></pre>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <script>
-async function processFile() {
-    const file = document.getElementById('fileInput').files[0];
-    if (!file) return alert("Upload file dulu!");
+const API_URL = "https://URL-BACKEND-LU/cek"; // GANTI
 
-    const reader = new FileReader();
+async function proses() {
+  const file = document.getElementById("file").files[0];
+  const reader = new FileReader();
 
-    reader.onload = async function(e) {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, {type: 'array'});
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet);
+  reader.onload = async function(e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: "array" });
 
-        document.getElementById("status").innerText = "⏳ Processing...";
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet);
 
-        for (let i = 0; i < json.length; i++) {
-            let nomor = json[i]["NO TELP"];
+    let hasil = [];
 
-            if (!nomor) continue;
+    for (let row of json) {
+      const nomor = row["NO TELP"];
 
-            let res = await fetch("https://wa-backend-production-da05.up.railway.app/cek", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ nomor })
-            });
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomor })
+      });
 
-            let dataRes = await res.json();
+      const dataRes = await res.json();
 
-            json[i]["KETERANGAN"] = "AKTIF";
-            json[i]["WA"] = dataRes.registered ? "TERDAFTAR" : "TIDAK TERDAFTAR";
-        }
+      hasil.push({
+        nomor: dataRes.nomor,
+        status: dataRes.registered ? "AKTIF" : "TIDAK TERDAFTAR"
+      });
+    }
 
-        const newSheet = XLSX.utils.json_to_sheet(json);
-        const newBook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(newBook, newSheet, "HASIL");
+    document.getElementById("hasil").textContent =
+      JSON.stringify(hasil, null, 2);
+  };
 
-        XLSX.writeFile(newBook, "hasil.xlsx");
-
-        document.getElementById("status").innerText = "✅ Selesai!";
-    };
-
-    reader.readAsArrayBuffer(file);
+  reader.readAsArrayBuffer(file);
 }
 </script>
 
