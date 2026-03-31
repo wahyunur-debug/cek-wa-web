@@ -2,18 +2,13 @@
 <html>
 <head>
   <title>WA Checker Pro</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body {
       font-family: Arial;
       background: #0f172a;
       color: white;
-      padding: 40px;
-    }
-
-    h2 {
-      text-align: center;
+      padding: 30px;
     }
 
     .card {
@@ -24,21 +19,21 @@
       margin: auto;
     }
 
-    input, button {
-      padding: 10px;
-      margin-top: 10px;
-      border-radius: 8px;
-      border: none;
+    h2 {
+      text-align: center;
     }
 
     button {
-      background: #22c55e;
-      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
       cursor: pointer;
+      margin-top: 10px;
     }
 
-    button:hover {
-      background: #16a34a;
+    .btn {
+      background: #22c55e;
+      color: white;
     }
 
     table {
@@ -47,26 +42,13 @@
       border-collapse: collapse;
     }
 
-    th, td {
+    td, th {
       padding: 10px;
       border-bottom: 1px solid #334155;
-      text-align: left;
     }
 
-    .aktif {
-      color: #22c55e;
-      font-weight: bold;
-    }
-
-    .tidak {
-      color: #ef4444;
-      font-weight: bold;
-    }
-
-    #progress {
-      margin-top: 10px;
-    }
-
+    .ok { color: #22c55e; }
+    .no { color: red; }
   </style>
 </head>
 <body>
@@ -74,14 +56,12 @@
 <div class="card">
   <h2>📱 WA Checker Pro</h2>
 
-  <input type="file" id="file">
+  <input type="file" id="file" />
   <br>
-  <button onclick="proses()">Mulai Cek</button>
-  <button onclick="downloadExcel()">Download Excel</button>
+  <button class="btn" onclick="proses()">Mulai Cek</button>
+  <button class="btn" onclick="download()">Download Excel</button>
 
-  <div id="progress"></div>
-
-  <table id="table">
+  <table id="tabel">
     <thead>
       <tr>
         <th>No</th>
@@ -94,100 +74,60 @@
 </div>
 
 <script>
-const API_URL = "https://ISI_URL_BACKEND_KAMU/cek";
-
-let hasilGlobal = [];
+let hasil = [];
 
 async function proses() {
   const file = document.getElementById("file").files[0];
 
-  if (!file) {
-    alert("Upload file dulu!");
-    return;
+  if (!file) return alert("Upload file dulu!");
+
+  const data = await file.arrayBuffer();
+  const workbook = XLSX.read(data);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const json = XLSX.utils.sheet_to_json(sheet);
+
+  const tbody = document.querySelector("#tabel tbody");
+  tbody.innerHTML = "";
+  hasil = [];
+
+  for (let i = 0; i < json.length; i++) {
+    let nomor = json[i].nomor || json[i].Nomor || Object.values(json[i])[0];
+
+    const res = await fetch("https://WAJIB-GANTI-INI.up.railway.app/cek", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ nomor })
+    });
+
+    const dataRes = await res.json();
+
+    hasil.push({
+      nomor,
+      status: dataRes.status
+    });
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${i+1}</td>
+        <td>${nomor}</td>
+        <td class="${dataRes.status === 'TERDAFTAR' ? 'ok' : 'no'}">
+          ${dataRes.status}
+        </td>
+      </tr>
+    `;
   }
-
-  const reader = new FileReader();
-
-  reader.onload = async function(e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: "array" });
-
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet);
-
-    const tbody = document.querySelector("#table tbody");
-    tbody.innerHTML = "";
-
-    hasilGlobal = [];
-
-    let total = json.length;
-    let count = 0;
-
-    for (let row of json) {
-      const nomor = row["NO TELP"];
-      if (!nomor) continue;
-
-      count++;
-
-      document.getElementById("progress").innerText =
-        `Processing ${count} / ${total}`;
-
-      try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nomor })
-        });
-
-        const dataRes = await res.json();
-
-        const status = dataRes.registered ? "AKTIF" : "TIDAK";
-
-        hasilGlobal.push({
-          nomor: dataRes.nomor,
-          status
-        });
-
-        const tr = `
-          <tr>
-            <td>${count}</td>
-            <td>${dataRes.nomor}</td>
-            <td class="${status === "AKTIF" ? "aktif" : "tidak"}">
-              ${status}
-            </td>
-          </tr>
-        `;
-
-        tbody.innerHTML += tr;
-
-      } catch {
-        tbody.innerHTML += `
-          <tr>
-            <td>${count}</td>
-            <td>${nomor}</td>
-            <td class="tidak">ERROR</td>
-          </tr>
-        `;
-      }
-    }
-
-    document.getElementById("progress").innerText = "Selesai ✅";
-  };
-
-  reader.readAsArrayBuffer(file);
 }
 
-function downloadExcel() {
-  if (hasilGlobal.length === 0) {
-    alert("Belum ada data!");
-    return;
-  }
+function download() {
+  if (hasil.length === 0) return alert("Belum ada data!");
 
-  const ws = XLSX.utils.json_to_sheet(hasilGlobal);
+  const ws = XLSX.utils.json_to_sheet(hasil);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Hasil");
 
-  XLSX.writeFile(wb, "hasil_cek_wa.xlsx");
+  XLSX.writeFile(wb, "hasil_cek.xlsx");
 }
 </script>
 
