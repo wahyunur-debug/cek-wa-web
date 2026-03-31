@@ -5,35 +5,41 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body {
-      font-family: Arial;
-      background: #0f172a;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
       color: white;
-      padding: 30px;
+      padding: 40px;
     }
 
     .card {
       background: #1e293b;
-      padding: 25px;
-      border-radius: 12px;
-      max-width: 800px;
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 900px;
       margin: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
 
-    h2 {
+    h1 {
       text-align: center;
+      margin-bottom: 30px;
+    }
+
+    input, button {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      margin: 5px;
     }
 
     button {
-      padding: 10px 15px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-
-    .btn {
       background: #22c55e;
       color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #16a34a;
     }
 
     table {
@@ -42,31 +48,41 @@
       border-collapse: collapse;
     }
 
-    td, th {
+    th, td {
       padding: 10px;
       border-bottom: 1px solid #334155;
+      text-align: center;
     }
 
-    .ok { color: #22c55e; }
-    .no { color: red; }
+    .aktif { color: #22c55e; font-weight: bold; }
+    .tidak { color: #ef4444; font-weight: bold; }
+
+    .progress {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
   </style>
 </head>
 <body>
 
 <div class="card">
-  <h2>📱 WA Checker Pro</h2>
+  <h1>📊 WA Checker Pro</h1>
 
   <input type="file" id="file" />
   <br>
-  <button class="btn" onclick="proses()">Mulai Cek</button>
-  <button class="btn" onclick="download()">Download Excel</button>
+  <button onclick="mulai()">Mulai Cek</button>
+  <button onclick="downloadExcel()">Download Excel</button>
 
-  <table id="tabel">
+  <div class="progress" id="progress"></div>
+
+  <table id="table">
     <thead>
       <tr>
         <th>No</th>
         <th>Nomor</th>
-        <th>Status</th>
+        <th>Keterangan</th>
+        <th>WA</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -74,60 +90,98 @@
 </div>
 
 <script>
+const API = "https://NAMA-BACKEND.up.railway.app/cek";
+
 let hasil = [];
 
-async function proses() {
+async function mulai() {
   const file = document.getElementById("file").files[0];
 
-  if (!file) return alert("Upload file dulu!");
-
-  const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const json = XLSX.utils.sheet_to_json(sheet);
-
-  const tbody = document.querySelector("#tabel tbody");
-  tbody.innerHTML = "";
-  hasil = [];
-
-  for (let i = 0; i < json.length; i++) {
-    let nomor = json[i].nomor || json[i].Nomor || Object.values(json[i])[0];
-
-    const res = await fetch("https://WAJIB-GANTI-INI.up.railway.app/cek", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ nomor })
-    });
-
-    const dataRes = await res.json();
-
-    hasil.push({
-      nomor,
-      status: dataRes.status
-    });
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${i+1}</td>
-        <td>${nomor}</td>
-        <td class="${dataRes.status === 'TERDAFTAR' ? 'ok' : 'no'}">
-          ${dataRes.status}
-        </td>
-      </tr>
-    `;
+  if (!file) {
+    alert("Upload file dulu!");
+    return;
   }
+
+  const reader = new FileReader();
+
+  reader.onload = async function(e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type: 'array'});
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet);
+
+    const tbody = document.querySelector("#table tbody");
+    tbody.innerHTML = "";
+    hasil = [];
+
+    let no = 1;
+
+    for (let row of json) {
+      let nomor = row["NO TELP"] || row["Nomor"] || "";
+
+      document.getElementById("progress").innerText =
+        `Proses ${no} / ${json.length}`;
+
+      try {
+        const res = await fetch(API, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ nomor })
+        });
+
+        const data = await res.json();
+
+        let ket = data.keterangan;
+        let wa = data.wa;
+
+        hasil.push({
+          NO: no,
+          NOMOR: nomor,
+          KETERANGAN: ket,
+          WA: wa
+        });
+
+        tbody.innerHTML += `
+          <tr>
+            <td>${no}</td>
+            <td>${nomor}</td>
+            <td class="${ket === 'AKTIF' ? 'aktif' : 'tidak'}">${ket}</td>
+            <td class="${wa === 'TERDAFTAR' ? 'aktif' : 'tidak'}">${wa}</td>
+          </tr>
+        `;
+
+      } catch (e) {
+        tbody.innerHTML += `
+          <tr>
+            <td>${no}</td>
+            <td>${nomor}</td>
+            <td class="tidak">ERROR</td>
+            <td class="tidak">ERROR</td>
+          </tr>
+        `;
+      }
+
+      no++;
+      await new Promise(r => setTimeout(r, 700)); // delay anti limit
+    }
+
+    document.getElementById("progress").innerText = "Selesai ✅";
+  };
+
+  reader.readAsArrayBuffer(file);
 }
 
-function download() {
-  if (hasil.length === 0) return alert("Belum ada data!");
+function downloadExcel() {
+  if (hasil.length === 0) {
+    alert("Belum ada hasil!");
+    return;
+  }
 
   const ws = XLSX.utils.json_to_sheet(hasil);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Hasil");
 
-  XLSX.writeFile(wb, "hasil_cek.xlsx");
+  XLSX.writeFile(wb, "hasil_wa.xlsx");
 }
 </script>
 
